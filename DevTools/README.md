@@ -70,7 +70,7 @@ This integration happens automatically when installing Git - no manual configura
 
 **Claude Code Requirements:**
 - Git must be installed first (script enforces order)
-- Installs in new PowerShell session with fresh environment variables
+- Gets environment variable update while in-session, to prevent needing to launch a new session
 
 ## Installation Structure
 
