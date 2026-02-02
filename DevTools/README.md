@@ -1,11 +1,12 @@
 # Dev Tools Installer
 
-PowerShell script to automatically download, install, and configure portable development tools to OneDrive Apps-SU folder.
+PowerShell script to automatically download, install, and configure portable development tools to **OneDrive Apps-SU (default) or Local Apps-SU** folder.
 
 ## Features
 
 - Downloads portable/embeddable versions of dev tools
-- Installs to `OneDrive\Apps-SU\<ToolName>` for easy sync and backup
+- Installs to `OneDrive\Apps-SU\<ToolName>` (default) or `%USERPROFILE%\Apps-SU\<ToolName>` (local)
+- **Pre-installation checks** - Detects existing installations in both locations
 - Automatically configures USER PATH environment variables
 - Cleans up installation files after completion
 - Modular design - easy to add new tools
@@ -13,28 +14,41 @@ PowerShell script to automatically download, install, and configure portable dev
 - Auto-extracts filenames from download URLs
 
 ## Usage
-
 ```powershell
-# Install all tools
-.\Install-DevTools.ps1
+# Install all tools to OneDrive (default)
+.\Install-DevTools-x64.ps1
+
+# Install all tools locally
+.\Install-DevTools-x64.ps1 -Location Local
 
 # Install specific tools
-.\Install-DevTools.ps1 -Tools 'Node','Git'
+.\Install-DevTools-x64.ps1 -Tools 'Node','Git'
 
 # Skip PATH updates
-.\Install-DevTools.ps1 -SkipPathUpdate
+.\Install-DevTools-x64.ps1 -SkipPathUpdate
 
 # Silent mode (errors only)
-.\Install-DevTools.ps1 -Quiet
+.\Install-DevTools-x64.ps1 -Quiet
 ```
 
 ## Supported Tools
 
-- **Node.js** 24.12.0 (ARM64)
-- **Git Portable** 2.47.1
+- **Node.js** 24.12.0 (x64)
+- **Git Portable** 2.52.0
 - **Python Embeddable** 3.13.1
 - **VS Code Portable** (Latest)
-- **Claude Code** (Latest)
+- **Claude Code** (Latest) - *Always installs locally*
+
+## Installation Locations
+
+### OneDrive (Default)
+Tools install to `%OneDrive%\Apps-SU\<ToolName>` for automatic sync across devices.
+
+### Local
+Tools install to `%USERPROFILE%\Apps-SU\<ToolName>` for machine-specific installation.
+
+### Claude Code Exception
+**Note:** Claude Code always installs to `%USERPROFILE%\.local\bin` regardless of `-Location` parameter.
 
 ## Special Configurations
 
@@ -42,38 +56,63 @@ PowerShell script to automatically download, install, and configure portable dev
 
 When Git is installed, the script automatically sets the `CLAUDE_CODE_GIT_BASH_PATH` environment variable to point to Git Bash. This enables Claude Code to use Git Bash for shell operations.
 
+**OneDrive:**
 ```
 CLAUDE_CODE_GIT_BASH_PATH=%OneDrive%\Apps-SU\Git\bin\bash.exe
 ```
 
+**Local:**
+```
+CLAUDE_CODE_GIT_BASH_PATH=%USERPROFILE%\Apps-SU\Git\bin\bash.exe
+```
+
 This integration happens automatically when installing Git - no manual configuration needed.
+
+**Claude Code Requirements:**
+- Git must be installed first (script enforces order)
+- Installs in new PowerShell session with fresh environment variables
 
 ## Installation Structure
 
+**OneDrive:**
 ```
 %OneDrive%\Apps-SU\
 ├── Node\
 ├── Git\
 ├── Python\
-├── VSCode\
-└── ClaudeCode\
+└── VSCode\
+
+%USERPROFILE%\.local\bin\
+└── claude.exe
+```
+
+**Local:**
+```
+%USERPROFILE%\Apps-SU\
+├── Node\
+├── Git\
+├── Python\
+└── VSCode\
+
+%USERPROFILE%\.local\bin\
+└── claude.exe
 ```
 
 ## Architecture
 
 The script uses a generic `Install-Tool` function that processes tool configurations. All tools share the same installation workflow:
 
-1. Download from configured URL
-2. Extract to temporary location
-3. Move/flatten to target directory
-4. Run post-install script (if defined)
-5. Update USER PATH
-6. Cleanup temporary files
+1. **Check if already installed** - Scans both OneDrive and Local locations
+2. Download from configured URL
+3. Extract to temporary location
+4. Move/flatten to target directory
+5. Run post-install script (if defined)
+6. Update USER PATH
+7. Cleanup temporary files
 
 ## Adding New Tools
 
 ### 1. Add Tool Configuration
-
 ```powershell
 $script:ToolConfigs = @{
     # ... existing tools ...
@@ -85,6 +124,8 @@ $script:ToolConfigs = @{
         PathSubfolder = ''                      # Empty = add root to PATH, or specify subfolder
         AdditionalPaths = @()                   # Other subfolders to add to PATH
         FlattenArchive = $false                 # True = extract and move nested folder
+        UseOfficialInstaller = $false           # True for tools with custom installers
+        ExecutablesToCheck = @("tool.exe")      # Executables to verify installation
         PostInstallScript = $null               # Optional configuration scriptblock
     }
 }
@@ -100,12 +141,13 @@ $script:ToolConfigs = @{
 | `PathSubfolder` | String | Subfolder to add to PATH (empty string = use root folder) |
 | `AdditionalPaths` | Array | Additional subfolders to add to PATH |
 | `FlattenArchive` | Boolean | If true, extract to temp then move first subfolder to target |
+| `UseOfficialInstaller` | Boolean | If true, use tool's official installation method |
+| `ExecutablesToCheck` | Array | List of executables to verify for installation detection |
 | `PostInstallScript` | ScriptBlock | Optional custom configuration script that runs after extraction |
 
 ### 2. Post-Install Script (Optional)
 
 If the tool requires special configuration after extraction:
-
 ```powershell
 PostInstallScript = {
     param($ToolPath)
@@ -124,7 +166,6 @@ PostInstallScript = {
 ```
 
 **Example: Git sets CLAUDE_CODE_GIT_BASH_PATH**
-
 ```powershell
 Git = @{
     # ... other config ...
@@ -141,7 +182,6 @@ Git = @{
 ### 3. Update ValidateSet
 
 Add the tool name to the parameter validation:
-
 ```powershell
 [ValidateSet('Node', 'Git', 'Python', 'VSCode', 'ClaudeCode', 'NewTool', 'All')]
 ```
@@ -149,20 +189,21 @@ Add the tool name to the parameter validation:
 ## Examples
 
 ### Claude Code
-
 ```powershell
 ClaudeCode = @{
     Name = 'Claude Code'
-    DownloadUrl = 'https://storage.googleapis.com/osprey-downloads-c02f6a0d-347c-492b-a752-3e0651722e97/nest-win-x64-0.1.52.zip'
+    DownloadUrl = $null
     FolderName = 'ClaudeCode'
     PathSubfolder = ''
     AdditionalPaths = @()
-    FlattenArchive = $true
+    FlattenArchive = $false
+    UseOfficialInstaller = $true
+    ExecutablesToCheck = @("claude.exe")
+    RequiresGit = $true
 }
 ```
 
 ### Go Programming Language
-
 ```powershell
 Go = @{
     Name = 'Go'
@@ -191,7 +232,6 @@ Go = @{
 ```
 
 ### Maven
-
 ```powershell
 Maven = @{
     Name = 'Apache Maven'
@@ -208,7 +248,6 @@ Maven = @{
 ```
 
 ### 7-Zip
-
 ```powershell
 SevenZip = @{
     Name = '7-Zip'
@@ -222,19 +261,16 @@ SevenZip = @{
 
 ## Architecture Notes
 
+This script is for **x64 (AMD64) architecture only**. The script includes an architecture check that will fail if run on non-x64 systems.
+
 Tool downloads are architecture-specific. Update the `DownloadUrl` in tool configurations to match your system:
 
+- **x64/amd64**: Standard Intel/AMD 64-bit (this script) - use URLs with `x64` or `amd64`
 - **ARM64**: Windows on ARM (Surface ARM, M1/M2 via Windows VM) - use URLs with `arm64` or `aarch64`
-- **x64/amd64**: Standard Intel/AMD 64-bit - use URLs with `x64` or `amd64`
 - **x86**: 32-bit (legacy) - use URLs with `x86` or `win32`
 
-**Example: Switching Node.js from ARM64 to x64**
-
+**Example: Node.js x64 (current)**
 ```powershell
-# ARM64 (current)
-DownloadUrl = 'https://nodejs.org/dist/v24.12.0/node-v24.12.0-win-arm64.zip'
-
-# Change to x64
 DownloadUrl = 'https://nodejs.org/dist/v24.12.0/node-v24.12.0-win-x64.zip'
 ```
 
@@ -244,7 +280,10 @@ DownloadUrl = 'https://nodejs.org/dist/v24.12.0/node-v24.12.0-win-x64.zip'
 Generic installation function that processes tool configuration and handles all standard installation steps.
 
 ### Initialize-Environment
-Resolves OneDrive path and creates necessary directories.
+Resolves OneDrive and Local paths, creates necessary directories.
+
+### Test-ToolInstalled
+Checks both OneDrive and Local locations for existing installations.
 
 ### Get-FileFromUrl
 Downloads files with optional progress reporting.
@@ -256,15 +295,22 @@ Extracts ZIP files or runs self-extracting EXE archives.
 Adds directories to USER PATH if not already present.
 
 ### Write-Log
-Centralized logging with level support (Info, Warning, Error).
+Centralized logging with level support (Info, Warning, Error, Success).
 
 ## Troubleshooting
+
+**Execution Policy Error**  
+If you get an error about script execution being disabled:
+```powershell
+# Set execution policy for current user (recommended)
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+```
 
 **PATH not updated**  
 Restart your terminal or PowerShell session.
 
 **OneDrive not found**  
-Ensure OneDrive is configured. The script checks `OneDriveCommercial` and `OneDrive` environment variables.
+Ensure OneDrive is configured. The script checks `OneDriveCommercial` and `OneDrive` environment variables. If unavailable, use `-Location Local`.
 
 **Download fails**  
 Verify internet connectivity and URL validity. Some downloads may require specific user agents or cookies.
