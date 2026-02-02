@@ -300,7 +300,7 @@ Centralized logging with level support (Info, Warning, Error, Success).
 ## Troubleshooting
 
 **Execution Policy Error**  
-If you get an error about script execution being disabled:
+If you get an error about script execution being disabled, open a PowerShell terminal and run this:
 ```powershell
 # Set execution policy for current user (recommended)
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
