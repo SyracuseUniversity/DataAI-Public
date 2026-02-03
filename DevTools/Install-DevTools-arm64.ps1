@@ -428,18 +428,39 @@ begin {
             InEnvironmentPath = $false
         }
 
-        # Microsoft Store Python installation patterns in PATH
-        $pythonPathPatterns = @(
-            '*\AppData\Local\Python\bin*',
-            '*\AppData\Local\Microsoft\WindowsApps\python*'
+        # Check if python is available via Get-Command (catches Microsoft Store and other system installs)
+        try {
+            $pythonCmd = Get-Command python.exe -ErrorAction SilentlyContinue
+            if ($pythonCmd) {
+                # Exclude our own portable installations
+                $pythonPath = $pythonCmd.Source
+                if ($pythonPath -notlike "*Apps-SU*") {
+                    $result.IsInstalled = $true
+                    $result.InstallPath = Split-Path $pythonPath -Parent
+                    $result.InEnvironmentPath = $true
+                    return $result
+                }
+            }
+        }
+        catch {
+            # Get-Command failed, continue with manual checks
+        }
+
+        # Fallback: Check common system installation paths
+        $pathDirs = $env:Path -split ';' | Where-Object { $_ }
+        
+        $systemPythonPatterns = @(
+            '*\Microsoft\WindowsApps*',
+            '*\Python\Python*',
+            '*\Python3*'
         )
 
-        $pathDirs = $env:Path -split ';' | Where-Object { $_ }
-
         foreach ($dir in $pathDirs) {
-            foreach ($pattern in $pythonPathPatterns) {
+            # Skip our portable installation paths
+            if ($dir -like "*Apps-SU*") { continue }
+            
+            foreach ($pattern in $systemPythonPatterns) {
                 if ($dir -like $pattern) {
-                    # Verify python.exe exists
                     $pythonExePath = Join-Path $dir "python.exe"
                     if (Test-Path -LiteralPath $pythonExePath) {
                         $result.IsInstalled = $true
