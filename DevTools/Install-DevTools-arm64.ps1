@@ -36,11 +36,11 @@
 Param(
     [Parameter(Mandatory = $false)]
     [ValidateSet('Node', 'Git', 'Python', 'VSCode', 'ClaudeCode', 'All')]
-    [string[]]$Tools = @('All'),
+    [string[]]$Tools = @('ALL'),
 
     [Parameter(Mandatory = $false)]
     [ValidateSet('OneDrive', 'Local')]
-    [string]$Location = 'OneDrive',
+    [string]$Location = 'Local',
 
     [Parameter(Mandatory = $false)]
     [switch]$SkipPathUpdate,
