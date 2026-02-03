@@ -36,11 +36,11 @@
 Param(
     [Parameter(Mandatory = $false)]
     [ValidateSet('Node', 'Git', 'Python', 'VSCode', 'ClaudeCode', 'All')]
-    [string[]]$Tools = @('ALL'),
+    [string[]]$Tools = @('All'),
 
     [Parameter(Mandatory = $false)]
     [ValidateSet('OneDrive', 'Local')]
-    [string]$Location = 'Local',
+    [string]$Location = 'OneDrive',
 
     [Parameter(Mandatory = $false)]
     [switch]$SkipPathUpdate,
@@ -651,12 +651,81 @@ begin {
         Write-Log "Installing Claude Code..."
         try {
             # Execute Anthropic's official installation script in current session
-            $null = Invoke-Expression (Invoke-RestMethod -Uri 'https://claude.ai/install.ps1')
+            $GCS_BUCKET = "https://storage.googleapis.com/claude-code-dist-86c565f3-f756-42ad-8dfa-d59b1c096819/claude-code-releases"
+            $DOWNLOAD_DIR = "$env:USERPROFILE\.claude\downloads"
+            $USERLOCAL_DIR = "$env:USERPROFILE\.local\bin"
+
+            # Always use x64 for Windows (ARM64 Windows can run x64 through emulation)
+            $platform = "win32-x64"
+            New-Item -ItemType Directory -Force -Path $DOWNLOAD_DIR | Out-Null
+            New-Item -ItemType Directory -Force -Path $USERLOCAL_DIR | Out-Null
+            Update-UserPath(@("$USERLOCAL_DIR"))
+
+            # Always download latest version (which has the most up-to-date installer)
+            try {
+                $version = Invoke-RestMethod -Uri "$GCS_BUCKET/latest" -ErrorAction Stop
+            }
+            catch {
+                throw "Failed to get latest version: $_"
+                exit 1
+            }
+
+            try {
+                $manifest = Invoke-RestMethod -Uri "$GCS_BUCKET/$version/manifest.json" -ErrorAction Stop
+                $checksum = $manifest.platforms.$platform.checksum
+
+                if (-not $checksum) {
+                    throw "Platform $platform not found in manifest"
+                    exit 1
+                }
+            }
+            catch {
+                throw "Failed to get manifest: $_"
+                exit 1
+            }
+
+            # Download and verify
+            $binaryPath = "$DOWNLOAD_DIR\claude-$version-$platform.exe"
+            try {
+                Invoke-WebRequest -Uri "$GCS_BUCKET/$version/$platform/claude.exe" -OutFile $binaryPath -ErrorAction Stop
+            }
+            catch {
+                throw "Failed to download binary: $_"
+                if (Test-Path $binaryPath) {
+                    Remove-Item -Force $binaryPath
+                }
+                exit 1
+            }
+
+            # Calculate checksum
+            $actualChecksum = (Get-FileHash -Path $binaryPath -Algorithm SHA256).Hash.ToLower()
+
+            if ($actualChecksum -ne $checksum) {
+                throw "Checksum verification failed"
+                Remove-Item -Force $binaryPath
+                exit 1
+            }
+
+            # Run claude install to set up launcher and shell integration
+            Write-Output "Setting up Claude Code..."
+            try {
+                & $binaryPath install "latest"
+            }
+            finally {
+                try {
+                    # Clean up downloaded file
+                    # Wait a moment for any file handles to be released
+                    Start-Sleep -Seconds 1
+                    Remove-Item -Force $binaryPath
+                }
+                catch {
+                    Write-Warning "Could not remove temporary file: $binaryPath"
+                }
+            }
             Write-Log "Claude Code installation completed"
         }
         catch {
-            Write-Error "Claude Code installation failed: $_"
-            throw
+            throw "Claude Code installation failed: $_"
         }
         
         # Verify installation
@@ -670,6 +739,15 @@ begin {
             if (-not $SkipPathUpdate) {
                 Update-UserPath -Paths @($claudeCodePath)
             }
+        } elseif (Test-Path -LiteralPath "$DOWNLOAD_DIR\claude-$version-$platform.exe") {
+            Write-Log "Claude Code executable found at: $DOWNLOAD_DIR\claude-$version-$platform.exe"
+            Write-Log "Attempting to move and rename Claude Code exe from $DOWNLOAD_DIR\claude-$version-$platform.exe to $USERLOCAL_DIR\claude.exe"
+            try{
+                Move-Item -Path "$DOWNLOAD_DIR\claude-$version-$platform.exe" -Destination "$USERLOCAL_DIR\claude.exe"
+                Write-Log "Successfully moved and renamed Claude Code exe location."
+            }
+            catch { throw "Unsuccessful in moving and renaming Claude Code exe" }
+
         } else {
             throw "Claude Code installation completed but executable not found at: $claudeExe"
         }
