@@ -417,6 +417,43 @@ begin {
         return $result
     }
 
+    function Test-PythonSystemInstalled {
+        [CmdletBinding()]
+        [OutputType([PSCustomObject])]
+        param()
+
+        $result = [PSCustomObject]@{
+            IsInstalled = $false
+            InstallPath = $null
+            InEnvironmentPath = $false
+        }
+
+        # Microsoft Store Python installation patterns in PATH
+        $pythonPathPatterns = @(
+            '*\AppData\Local\Python\bin*',
+            '*\AppData\Local\Microsoft\WindowsApps\python*'
+        )
+
+        $pathDirs = $env:Path -split ';' | Where-Object { $_ }
+
+        foreach ($dir in $pathDirs) {
+            foreach ($pattern in $pythonPathPatterns) {
+                if ($dir -like $pattern) {
+                    # Verify python.exe exists
+                    $pythonExePath = Join-Path $dir "python.exe"
+                    if (Test-Path -LiteralPath $pythonExePath) {
+                        $result.IsInstalled = $true
+                        $result.InstallPath = $dir
+                        $result.InEnvironmentPath = $true
+                        return $result
+                    }
+                }
+            }
+        }
+
+        return $result
+    }
+
     function Show-InstallationStatus {
         [CmdletBinding()]
         param(
@@ -641,6 +678,16 @@ begin {
             }
         }
 
+        # Special check for Python - see if Microsoft Store version exists
+        if ($ToolName -eq 'Python') {
+            $systemPython = Test-PythonSystemInstalled
+            if ($systemPython.IsInstalled) {
+                Write-Log ">>> Python is already installed on the system (Microsoft Store) <<<" -Level Success
+                Write-Log "    Location: $($systemPython.InstallPath)"
+                Write-Log "    Skipping portable installation"
+                return
+            }
+        }
         # Check if already installed
         $status = Test-ToolInstalled -ToolName $ToolName
         
@@ -849,6 +896,14 @@ process {
                     $systemVSCode = Test-VSCodeSystemInstalled
                     if ($systemVSCode.IsInstalled) {
                         Write-Log "[OK] $($config.Name) - Installed (System)" -Level Success
+                        continue
+                    }
+                }
+                # Special case for Python - check Microsoft Store installation too
+                if ($tool -eq 'Python') {
+                    $systemPython = Test-PythonSystemInstalled
+                    if ($systemPython.IsInstalled) {
+                        Write-Log "[OK] $($config.Name) - Installed (Microsoft Store)" -Level Success
                         continue
                     }
                 }
