@@ -77,7 +77,7 @@ begin {
         Git = @{
             Name = 'Git Portable'
             DownloadUrl = 'https://github.com/git-for-windows/git/releases/download/v2.52.0.windows.1/PortableGit-2.52.0-64-bit.7z.exe'
-            FolderName = 'Git'
+            FolderName = 'PortableGit'
             PathSubfolder = 'cmd'
             AdditionalPaths = @('bin', 'usr\bin')
             FlattenArchive = $false
@@ -380,6 +380,43 @@ begin {
         }
     }
 
+    function Test-VSCodeSystemInstalled {
+        [CmdletBinding()]
+        [OutputType([PSCustomObject])]
+        param()
+
+        $result = [PSCustomObject]@{
+            IsInstalled = $false
+            InstallPath = $null
+            InEnvironmentPath = $false
+        }
+
+        # Common VS Code installation patterns in PATH
+        $vsCodePathPatterns = @(
+            '*Microsoft VS Code*',
+            '*VSCode*'
+        )
+
+        $pathDirs = $env:Path -split ';' | Where-Object { $_ }
+
+        foreach ($dir in $pathDirs) {
+            foreach ($pattern in $vsCodePathPatterns) {
+                if ($dir -like $pattern) {
+                    # Verify code.cmd exists
+                    $codeCmdPath = Join-Path $dir "code.cmd"
+                    if (Test-Path -LiteralPath $codeCmdPath) {
+                        $result.IsInstalled = $true
+                        $result.InstallPath = $dir
+                        $result.InEnvironmentPath = $true
+                        return $result
+                    }
+                }
+            }
+        }
+
+        return $result
+    }
+
     function Show-InstallationStatus {
         [CmdletBinding()]
         param(
@@ -593,6 +630,17 @@ begin {
             throw "Tool configuration not found: $ToolName"
         }
 
+        # Special check for VS Code - see if system-installed version exists
+        if ($ToolName -eq 'VSCode') {
+            $systemVSCode = Test-VSCodeSystemInstalled
+            if ($systemVSCode.IsInstalled) {
+                Write-Log ">>> VS Code is already installed on the system <<<" -Level Success
+                Write-Log "    Location: $($systemVSCode.InstallPath)"
+                Write-Log "    Skipping portable installation"
+                return
+            }
+        }
+
         # Check if already installed
         $status = Test-ToolInstalled -ToolName $ToolName
         
@@ -796,6 +844,14 @@ process {
             if ($status.IsInstalledAnywhere) {
                 Write-Log "[OK] $($config.Name) - Installed" -Level Success
             } else {
+                # Special case for VSCode - check system installation too
+                if ($tool -eq 'VSCode') {
+                    $systemVSCode = Test-VSCodeSystemInstalled
+                    if ($systemVSCode.IsInstalled) {
+                        Write-Log "[OK] $($config.Name) - Installed (System)" -Level Success
+                        continue
+                    }
+                }
                 Write-Log "[--] $($config.Name) - Not Installed" -Level Warning
             }
         }
