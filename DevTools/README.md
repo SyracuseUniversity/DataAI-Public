@@ -1,6 +1,6 @@
 # Dev Tools Installer
 
-PowerShell script to automatically download, install, and configure portable development tools to **OneDrive Apps-SU (default) or Local Apps-SU** folder.
+PowerShell scripts to automatically download, install, and configure portable development tools to **OneDrive Apps-SU (default) or Local Apps-SU** folder.
 
 ## Features
 
@@ -13,10 +13,25 @@ PowerShell script to automatically download, install, and configure portable dev
 - Idempotent - safe to run multiple times
 - Auto-extracts filenames from download URLs
 
+## Architecture Support
+
+Two scripts are provided for different CPU architectures:
+
+| Script | Architecture | Use Case |
+|--------|-------------|----------|
+| `Install-DevTools-x64.ps1` | x64 (AMD64) | Standard Intel/AMD 64-bit systems |
+| `Install-DevTools-arm64.ps1` | ARM64 | Windows on ARM (Surface Pro X, Copilot+ PCs, etc.) |
+
+Each script automatically validates it's running on the correct architecture.
+
 ## Usage
+
 ```powershell
-# Install all tools to OneDrive (default)
+# Install all tools to OneDrive (default) - x64 systems
 .\Install-DevTools-x64.ps1
+
+# Install all tools to OneDrive (default) - ARM64 systems
+.\Install-DevTools-arm64.ps1
 
 # Install all tools locally
 .\Install-DevTools-x64.ps1 -Location Local
@@ -33,11 +48,15 @@ PowerShell script to automatically download, install, and configure portable dev
 
 ## Supported Tools
 
-- **Node.js** 24.12.0 (x64)
-- **Git Portable** 2.52.0
-- **Python Embeddable** 3.13.1
-- **VS Code Portable** (Latest)
-- **Claude Code** (Latest) - *Always installs locally*
+| Tool | x64 Version | ARM64 Version |
+|------|-------------|---------------|
+| **Node.js** | 24.12.0 | 24.12.0 |
+| **Git Portable** | 2.52.0 | 2.52.0 |
+| **Python Embeddable** | 3.13.1 | 3.14.2 |
+| **VS Code Portable** | Latest | Latest |
+| **Claude Code** | Latest | Latest |
+
+*Note: Python versions differ between architectures based on available embeddable packages.*
 
 ## Installation Locations
 
@@ -58,12 +77,12 @@ When Git is installed, the script automatically sets the `CLAUDE_CODE_GIT_BASH_P
 
 **OneDrive:**
 ```
-CLAUDE_CODE_GIT_BASH_PATH=%OneDrive%\Apps-SU\Git\bin\bash.exe
+CLAUDE_CODE_GIT_BASH_PATH=%OneDrive%\Apps-SU\PortableGit\bin\bash.exe
 ```
 
 **Local:**
 ```
-CLAUDE_CODE_GIT_BASH_PATH=%USERPROFILE%\Apps-SU\Git\bin\bash.exe
+CLAUDE_CODE_GIT_BASH_PATH=%USERPROFILE%\Apps-SU\PortableGit\bin\bash.exe
 ```
 
 This integration happens automatically when installing Git - no manual configuration needed.
@@ -78,7 +97,7 @@ This integration happens automatically when installing Git - no manual configura
 ```
 %OneDrive%\Apps-SU\
 ├── Node\
-├── Git\
+├── PortableGit\
 ├── Python\
 └── VSCode\
 
@@ -90,7 +109,7 @@ This integration happens automatically when installing Git - no manual configura
 ```
 %USERPROFILE%\Apps-SU\
 ├── Node\
-├── Git\
+├── PortableGit\
 ├── Python\
 └── VSCode\
 
@@ -259,31 +278,22 @@ SevenZip = @{
 }
 ```
 
-## Architecture Notes
-
-This script is for **x64 (AMD64) architecture only**. The script includes an architecture check that will fail if run on non-x64 systems.
-
-Tool downloads are architecture-specific. Update the `DownloadUrl` in tool configurations to match your system:
-
-- **x64/amd64**: Standard Intel/AMD 64-bit (this script) - use URLs with `x64` or `amd64`
-- **ARM64**: Windows on ARM (Surface ARM, M1/M2 via Windows VM) - use URLs with `arm64` or `aarch64`
-- **x86**: 32-bit (legacy) - use URLs with `x86` or `win32`
-
-**Example: Node.js x64 (current)**
-```powershell
-DownloadUrl = 'https://nodejs.org/dist/v24.12.0/node-v24.12.0-win-x64.zip'
-```
-
 ## Key Functions
 
 ### Install-Tool
 Generic installation function that processes tool configuration and handles all standard installation steps.
 
 ### Initialize-Environment
-Resolves OneDrive and Local paths, creates necessary directories.
+Resolves OneDrive and Local paths, creates necessary directories, and validates CPU architecture.
 
 ### Test-ToolInstalled
 Checks both OneDrive and Local locations for existing installations.
+
+### Test-VSCodeSystemInstalled
+Detects system-installed VS Code to avoid duplicate portable installation.
+
+### Test-PythonSystemInstalled
+Detects Microsoft Store or other system Python installations.
 
 ### Get-FileFromUrl
 Downloads files with optional progress reporting.
@@ -305,6 +315,13 @@ If you get an error about script execution being disabled, open a PowerShell ter
 # Set execution policy for current user (recommended)
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 ```
+
+**Architecture Mismatch Error**  
+If you see "This script requires Windows x64/ARM64 architecture", you're running the wrong script for your system. Check your architecture:
+```powershell
+$env:PROCESSOR_ARCHITECTURE
+```
+Use `Install-DevTools-x64.ps1` for AMD64 or `Install-DevTools-arm64.ps1` for ARM64.
 
 **PATH not updated**  
 Restart your terminal or PowerShell session.
