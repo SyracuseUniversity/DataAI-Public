@@ -86,12 +86,12 @@ begin {
         if ($IsArm64) {
             $nodeUrl = 'https://nodejs.org/dist/v24.12.0/node-v24.12.0-win-arm64.zip'
             $gitUrl = 'https://github.com/git-for-windows/git/releases/download/v2.52.0.windows.1/PortableGit-2.52.0-arm64.7z.exe'
-            $pythonUrl = 'https://www.python.org/ftp/python/3.14.2/python-3.14.2-embed-arm64.zip'
+            $pythonUrl = 'https://www.python.org/ftp/python/3.14.3/python-3.14.3-embed-arm64.zip'
             $vsCodeUrl = 'https://code.visualstudio.com/sha/download?build=stable&os=win32-arm64-archive'
         } else {
             $nodeUrl = 'https://nodejs.org/dist/v24.12.0/node-v24.12.0-win-x64.zip'
             $gitUrl = 'https://github.com/git-for-windows/git/releases/download/v2.52.0.windows.1/PortableGit-2.52.0-64-bit.7z.exe'
-            $pythonUrl = 'https://www.python.org/ftp/python/3.13.1/python-3.13.1-embed-amd64.zip'
+            $pythonUrl = 'https://www.python.org/ftp/python/3.14.3/python-3.14.3-embed-amd64.zip'
             $vsCodeUrl = 'https://code.visualstudio.com/sha/download?build=stable&os=win32-x64-archive'
         }
 
