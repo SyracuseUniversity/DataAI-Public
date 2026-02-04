@@ -236,7 +236,7 @@ begin {
 
         if ($oneDrive) {
             $script:OneDriveRoot = $oneDrive
-            $script:OneDriveAppsRoot = Join-Path $oneDrive "Apps-SU" $script:Architecture
+            $script:OneDriveAppsRoot = Join-Path $oneDrive "Apps-SU\$script:Architecture"
             Write-Log "OneDrive Root: $script:OneDriveRoot"
             Write-Log "OneDrive Apps Root: $script:OneDriveAppsRoot"
         } else {
@@ -252,7 +252,7 @@ begin {
         }
 
         $script:LocalRoot = $localPath
-        $script:LocalAppsRoot = Join-Path $localPath "Apps-SU" $script:Architecture
+        $script:LocalAppsRoot = Join-Path $localPath "Apps-SU\$script:Architecture"
         Write-Log "Local Root: $script:LocalRoot"
         Write-Log "Local Apps Root: $script:LocalAppsRoot"
 
@@ -476,7 +476,7 @@ begin {
 
         # Check if python is available via Get-Command (catches Microsoft Store and other system installs)
         try {
-            $pythonCmd = Get-Command python.exe -ErrorAction SilentlyContinue
+            $pythonCmd = Get-Command py.exe -ErrorAction SilentlyContinue
             if ($pythonCmd) {
                 # Exclude our own portable installations
                 $pythonPath = $pythonCmd.Source
@@ -496,7 +496,6 @@ begin {
         $pathDirs = $env:Path -split ';' | Where-Object { $_ }
 
         $systemPythonPatterns = @(
-            '*\Microsoft\WindowsApps*',
             '*\Python\Python*',
             '*\Python3*'
         )
