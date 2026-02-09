@@ -207,8 +207,11 @@ Add the tool name to the parameter validation:
 ## Troubleshooting
 
 **Execution Policy Error**
+This problem typically arises when downloaded from the web (as opposed to cloning the repo via Git)
+When downloaded from the web, set the Execution Policy to Bypass for the file/location.
+Another possible solution could be unblocking the file.
 ```powershell
-Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+Set-ExecutionPolicy -ExecutionPolicy Bypass -File .\Install-DevTools.ps1
 ```
 
 **Unsupported Architecture**  
