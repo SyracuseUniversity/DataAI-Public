@@ -76,6 +76,8 @@ begin {
         return $arch
     }
 
+    #region Initialize-ToolConfigs
+
     function Initialize-ToolConfigs {
         [CmdletBinding()]
         param(
@@ -186,6 +188,9 @@ begin {
         }
     }
 
+    #endregion Initialize-ToolConfigs
+    #region Write-Log
+
     function Write-Log {
         [CmdletBinding()]
         param(
@@ -206,6 +211,9 @@ begin {
             default { Write-Host $Message }
         }
     }
+
+    #endregion Write-Log
+    #region Initialize-Environment
 
     function Initialize-Environment {
         [CmdletBinding()]
@@ -278,6 +286,9 @@ begin {
         New-Item -Path $script:TempDownloadFolder -ItemType Directory -Force | Out-Null
         Write-Log "Temp folder: $script:TempDownloadFolder"
     }
+
+    #endregion Initialize-Environment
+    #region Test-ToolInstalled
 
     function Test-ToolInstalled {
         [CmdletBinding()]
@@ -426,6 +437,9 @@ begin {
         }
     }
 
+    #endregion Test-ToolInstalled
+    #region Test-VSCodeSystemInstalled
+
     function Test-VSCodeSystemInstalled {
         [CmdletBinding()]
         [OutputType([PSCustomObject])]
@@ -462,6 +476,9 @@ begin {
 
         return $result
     }
+
+    #endregion Test-VSCodeSystemInstalled
+    #region Test-PythonSystemInstalled
 
     function Test-PythonSystemInstalled {
         [CmdletBinding()]
@@ -520,6 +537,9 @@ begin {
         return $result
     }
 
+    #endregion Test-PythonSystemInstalled
+    #region Show-InstallationStatus
+
     function Show-InstallationStatus {
         [CmdletBinding()]
         param(
@@ -550,6 +570,9 @@ begin {
         }
     }
 
+    #endregion Show-InstallationStatus
+    #region Get-EnvironmentPath
+
     function Get-EnvironmentPath {
         [CmdletBinding()]
         param()
@@ -559,6 +582,9 @@ begin {
         $env:CLAUDE_CODE_GIT_BASH_PATH = [Environment]::GetEnvironmentVariable("CLAUDE_CODE_GIT_BASH_PATH", "User")
         Write-Log "Environment PATH refreshed"
     }
+
+    #endregion Get-EnvironmentPath
+    #region Get-FileFromUrl
 
     function Get-FileFromUrl {
         [CmdletBinding()]
@@ -594,6 +620,9 @@ begin {
         }
     }
 
+    #endregion Get-FileFromUrl
+    #region Expand-ArchiveFile
+
     function Expand-ArchiveFile {
         [CmdletBinding()]
         param(
@@ -626,6 +655,9 @@ begin {
             }
         }
     }
+
+    #endregion Expand-ArchiveFile
+    #region Update-UserPath
 
     function Update-UserPath {
         [CmdletBinding()]
@@ -672,6 +704,9 @@ begin {
         }
     }
 
+    #endregion Update-UserPath
+    #region Set-ClaudeCodeRegistryEntry
+
     function Set-ClaudeCodeRegistryEntry {
         [CmdletBinding()]
         param($exePath)
@@ -711,6 +746,9 @@ begin {
         }
     }
 
+    #endregion Set-ClaudeCodeRegistryEntry
+    #region Install-ClaudeCodeOfficial
+
     function Install-ClaudeCodeOfficial {
         [CmdletBinding()]
         param()
@@ -735,12 +773,13 @@ begin {
         Write-Log "Installing Claude Code..."
         try {
             # Execute Anthropic's official installation script in current session
-            if ($script:IsArm64) {
+            if ((Get-CimInstance Win32_Processor | Select-Object Architecture).Architecture -contains 12) {
                 # ARM64-specific installation logic
                 $GCS_BUCKET = "https://storage.googleapis.com/claude-code-dist-86c565f3-f756-42ad-8dfa-d59b1c096819/claude-code-releases"
                 $DOWNLOAD_DIR = "$env:USERPROFILE\.claude\downloads"
                 $USERLOCAL_DIR = "$env:USERPROFILE\.local\bin"
 
+                Write-Log "Installing Claude Code..."
                 # Always use x64 for Windows (ARM64 Windows can run x64 through emulation)
                 $platform = "win32-x64"
                 New-Item -ItemType Directory -Force -Path $DOWNLOAD_DIR | Out-Null
@@ -749,6 +788,7 @@ begin {
 
                 # Always download latest version (which has the most up-to-date installer)
                 try {
+                    Write-Log "Getting version..."
                     $version = Invoke-RestMethod -Uri "$GCS_BUCKET/latest" -ErrorAction Stop
                 }
                 catch {
@@ -756,6 +796,7 @@ begin {
                 }
 
                 try {
+                    Write-Log "Getting manifest..."
                     $manifest = Invoke-RestMethod -Uri "$GCS_BUCKET/$version/manifest.json" -ErrorAction Stop
                     $checksum = $manifest.platforms.$platform.checksum
 
@@ -768,6 +809,7 @@ begin {
                 }
 
                 # Download and verify
+                Write-Log "Downloading binary..."
                 $binaryPath = "$DOWNLOAD_DIR\claude-$version-$platform.exe"
                 try {
                     Invoke-WebRequest -Uri "$GCS_BUCKET/$version/$platform/claude.exe" -OutFile $binaryPath -ErrorAction Stop
@@ -780,6 +822,7 @@ begin {
                 }
 
                 # Calculate checksum
+                Write-Log "Verifying checksum..."
                 $actualChecksum = (Get-FileHash -Path $binaryPath -Algorithm SHA256).Hash.ToLower()
 
                 if ($actualChecksum -ne $checksum) {
@@ -810,13 +853,14 @@ begin {
                         Write-Log "Moving Claude Code exe from $DOWNLOAD_DIR\claude-$version-$platform.exe to $USERLOCAL_DIR\claude.exe"
                         try {
                             Move-Item -Path "$DOWNLOAD_DIR\claude-$version-$platform.exe" -Destination "$USERLOCAL_DIR\claude.exe"
-                            # Configure registry entry for ARM64 compatibility
-                            Set-ClaudeCodeRegistryEntry -exePath "$USERLOCAL_DIR\claude.exe"
                             Write-Log "Successfully moved and renamed Claude Code exe location."
                         }
                         catch { throw "Failed to move and rename Claude Code exe" }
                     }
                 }
+                # Configure registry entry for ARM64 compatibility
+                Set-ClaudeCodeRegistryEntry -exePath "$USERLOCAL_DIR\claude.exe"
+                Write-Log "Set Claude Code registry entry for ARM64 compatibility"
             } else {
                 # x64-specific installation (simpler, uses official installer)
                 $null = Invoke-Expression (Invoke-RestMethod -Uri 'https://claude.ai/install.ps1')
@@ -843,6 +887,9 @@ begin {
             throw "Claude Code installation completed but executable not found at: $claudeExe"
         }
     }
+
+    #endregion Install-ClaudeCodeOfficial
+    #region Install-Tool
 
     function Install-Tool {
         [CmdletBinding()]
@@ -1001,6 +1048,9 @@ begin {
         Write-Log "$($config.Name) installation complete"
     }
 
+    #endregion Install-Tool
+    #region Remove-DownloadedFiles
+
     function Remove-DownloadedFiles {
         [CmdletBinding()]
         param()
@@ -1010,7 +1060,11 @@ begin {
             Write-Log "Cleaned up temporary files"
         }
     }
+
+    #endregion Remove-DownloadedFiles
 }
+
+#region Main Process
 
 process {
     try {
@@ -1114,5 +1168,7 @@ process {
         Remove-DownloadedFiles
     }
 }
+
+#endregion Main Process
 
 end {}
