@@ -211,7 +211,7 @@ This problem typically arises when downloaded from the web (as opposed to clonin
 When downloaded from the web, set the Execution Policy to Bypass for the file/location.
 Another possible solution could be unblocking the file.
 ```powershell
-Set-ExecutionPolicy -ExecutionPolicy Bypass -File .\Install-DevTools.ps1
+Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process
 ```
 
 **Unsupported Architecture**  
