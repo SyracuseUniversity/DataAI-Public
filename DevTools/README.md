@@ -213,6 +213,9 @@ Another possible solution could be unblocking the file.
 ```powershell
 Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process
 ```
+```bash
+powershell -ExecutionPolicy Bypass -File .\Install-DevTools.ps1
+```
 
 **Unsupported Architecture**  
 The script only supports AMD64 and ARM64. 32-bit systems are not supported.

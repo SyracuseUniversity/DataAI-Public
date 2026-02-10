@@ -67,15 +67,6 @@ begin {
     $script:Architecture = $null
     $script:IsArm64 = $false
 
-    function Get-SystemArchitecture {
-        [CmdletBinding()]
-        [OutputType([string])]
-        param()
-
-        $arch = $env:PROCESSOR_ARCHITECTURE
-        return $arch
-    }
-
     #region Initialize-ToolConfigs
 
     function Initialize-ToolConfigs {
@@ -219,18 +210,17 @@ begin {
         [CmdletBinding()]
         param()
 
-        # Check architecture and set flag
-        $script:Architecture = Get-SystemArchitecture
-        Write-Log "Detected architecture: $script:Architecture"
-
-        if ($script:Architecture -eq 'ARM64') {
+        # Check architecture using reliable CIM method
+        [bool]$isArm = (Get-CimInstance Win32_Processor | Select-Object Architecture).Architecture -contains 12
+        
+        if ($isArm) {
             $script:IsArm64 = $true
+            $script:Architecture = 'ARM64'
             Write-Log "Using ARM64 installers"
-        } elseif ($script:Architecture -eq 'AMD64') {
-            $script:IsArm64 = $false
-            Write-Log "Using x64 installers"
         } else {
-            throw "Unsupported architecture: $script:Architecture (requires AMD64 or ARM64)"
+            $script:IsArm64 = $false
+            $script:Architecture = 'AMD64'
+            Write-Log "Using x64 installers"
         }
 
         # Initialize tool configs based on architecture
@@ -712,7 +702,7 @@ begin {
         param($exePath)
 
         # Only set registry entry for ARM64
-        if (-not $script:IsArm64) {
+        if (-not (Get-CimInstance Win32_Processor | Select-Object Architecture).Architecture -contains 12) {
             return
         }
 
