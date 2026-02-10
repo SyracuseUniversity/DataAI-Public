@@ -64,7 +64,6 @@ begin {
     $script:LocalAppsRoot = $null
     $script:AppsRoot = $null  # Will be set based on Location parameter
     $script:TempDownloadFolder = $null
-    $script:Architecture = $null
     $script:IsArm64 = $false
 
     #region Initialize-ToolConfigs
@@ -215,11 +214,11 @@ begin {
         
         if ($isArm) {
             $script:IsArm64 = $true
-            $script:Architecture = 'ARM64'
+            [System.String]$Architecture = 'ARM64'
             Write-Log "Using ARM64 installers"
         } else {
             $script:IsArm64 = $false
-            $script:Architecture = 'AMD64'
+            [System.String]$Architecture = 'AMD64'
             Write-Log "Using x64 installers"
         }
 
@@ -234,7 +233,7 @@ begin {
 
         if ($oneDrive) {
             $script:OneDriveRoot = $oneDrive
-            $script:OneDriveAppsRoot = Join-Path $oneDrive "Apps-SU\$script:Architecture"
+            $script:OneDriveAppsRoot = Join-Path $oneDrive "Apps-SU\$Architecture"
             Write-Log "OneDrive Root: $script:OneDriveRoot"
             Write-Log "OneDrive Apps Root: $script:OneDriveAppsRoot"
         } else {
@@ -250,7 +249,7 @@ begin {
         }
 
         $script:LocalRoot = $localPath
-        $script:LocalAppsRoot = Join-Path $localPath "Apps-SU\$script:Architecture"
+        $script:LocalAppsRoot = Join-Path $localPath "Apps-SU\$Architecture"
         Write-Log "Local Root: $script:LocalRoot"
         Write-Log "Local Apps Root: $script:LocalAppsRoot"
 
