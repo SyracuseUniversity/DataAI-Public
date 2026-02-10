@@ -897,7 +897,13 @@ begin {
         if ($ToolName -eq 'VSCode') {
             $systemVSCode = Test-VSCodeSystemInstalled
             if ($systemVSCode.IsInstalled) {
-                Write-Log ">>> VS Code is already installed on the system <<<" -Level Success
+                if($systemVSCode.InstallPath -like "*OneDrive*")
+                {
+                    Write-Log ">>> VS Code is already installed in OneDrive <<<" -Level Success
+                } else 
+                {
+                    Write-Log ">>> VS Code is already installed on the system <<<" -Level Success
+                }
                 Write-Log "    Location: $($systemVSCode.InstallPath)"
                 Write-Log "    Skipping portable installation"
                 return
