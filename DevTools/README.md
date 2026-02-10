@@ -214,7 +214,7 @@ In PowerShell:
 ```powershell
 Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process
 ```
-From the Command Prompt (cmd)
+From the Command Prompt (cmd):
 ```bash
 powershell -ExecutionPolicy Bypass -File .\Install-DevTools.ps1
 ```
