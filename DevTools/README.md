@@ -210,9 +210,11 @@ Add the tool name to the parameter validation:
 This problem typically arises when downloaded from the web (as opposed to cloning the repo via Git)
 When downloaded from the web, set the Execution Policy to Bypass for the file/location.
 Another possible solution could be unblocking the file.
+In PowerShell:
 ```powershell
 Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process
 ```
+From the Command Prompt (cmd)
 ```bash
 powershell -ExecutionPolicy Bypass -File .\Install-DevTools.ps1
 ```
