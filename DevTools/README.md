@@ -106,15 +106,14 @@ On ARM64 systems, Claude Code runs via x64 emulation. The script automatically:
 
 ## Installation Workflow
 
-1. **Detect architecture** - Determines AMD64 or ARM64
-2. **Initialize tool configurations** - Sets architecture-appropriate download URLs
-3. **Check if already installed** - Scans both OneDrive and Local locations
-4. **Download** - Fetches from configured URL
-5. **Extract** - Unzips to temporary location
-6. **Install** - Moves to target directory
-7. **Post-install** - Runs tool-specific configuration (if defined)
-8. **Update PATH** - Adds tool directories to USER PATH
-9. **Cleanup** - Removes temporary files
+1. **Initialize tool configurations** - Sets architecture-appropriate download URLs
+2. **Check if already installed** - Scans both OneDrive and Local locations
+3. **Download** - Fetches from configured URL
+4. **Extract** - Unzips to temporary location
+5. **Install** - Moves to target directory
+6. **Post-install** - Runs tool-specific configuration (if defined)
+7. **Update PATH** - Adds tool directories to USER PATH
+8. **Cleanup** - Removes temporary files
 
 ## Adding New Tools
 
@@ -191,7 +190,6 @@ Add the tool name to the parameter validation:
 
 | Function | Description |
 |----------|-------------|
-| `Get-SystemArchitecture` | Detects CPU architecture (AMD64/ARM64) |
 | `Initialize-ToolConfigs` | Sets up tool configurations based on architecture |
 | `Initialize-Environment` | Resolves paths and creates directories |
 | `Test-ToolInstalled` | Checks for existing installations |
