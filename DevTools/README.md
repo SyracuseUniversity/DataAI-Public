@@ -237,6 +237,10 @@ The script configures registry compatibility settings automatically. If issues p
 ```
 HKCU:\Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers
 ```
+You should see a registry Name similar to:
+```C:\Users\USERNAME\.local\bin\claude.exe```
+With a Data value of 
+```~ ARM64HIDEAVX```
 
 ## Design Principles
 
