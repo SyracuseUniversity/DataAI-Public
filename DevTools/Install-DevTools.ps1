@@ -3,7 +3,8 @@
     Downloads and installs portable development tools to user-scoped OneDrive or Local folder.
 .DESCRIPTION
     Automatically downloads, extracts, and configures portable versions of development tools
-    (Node.js, Git, Python, VS Code, Claude Code) to either OneDrive\Apps-SU\[arch] or Local\Apps-SU\[arch].
+    (Node.js, Git, Python, VS Code, Claude Code, GitHub Desktop) to either OneDrive\Apps-SU\[arch] or Local\Apps-SU\[arch].
+    GitHub Desktop is always installed locally to %LOCALAPPDATA%\GitHubDesktop regardless of the Location parameter.
     Updates USER PATH as needed and cleans up installation files.
 
     Detects system architecture (x64 or ARM64) and downloads the appropriate installers.
@@ -12,7 +13,7 @@
 .PARAMETER Tools
     Array of tool names to install. If not specified, installs all available tools.
     A Prerequisite to ClaudeCode is Git. If only ClaudeCode is specified, Git will be added to the list to install as well.
-    Valid values: 'Node', 'Git', 'Python', 'VSCode', 'ClaudeCode', 'All'
+    Valid values: 'Node', 'Git', 'Python', 'VSCode', 'ClaudeCode', 'GitHubDesktop', 'All'
 .PARAMETER Location
     Where to install tools. Options: 'OneDrive' (default) or 'Local'
     Note: Claude Code is always installed locally regardless of this setting.
@@ -38,7 +39,7 @@
 [CmdletBinding(DefaultParameterSetName = 'Default')]
 Param(
     [Parameter(Mandatory = $false)]
-    [ValidateSet('Node', 'Git', 'Python', 'VSCode', 'ClaudeCode', 'All')]
+    [ValidateSet('Node', 'Git', 'Python', 'VSCode', 'ClaudeCode', 'GitHubDesktop', 'All')]
     [string[]]$Tools = @('All'),
 
     [Parameter(Mandatory = $false)]
@@ -80,11 +81,13 @@ begin {
             $gitUrl = 'https://github.com/git-for-windows/git/releases/download/v2.52.0.windows.1/PortableGit-2.52.0-arm64.7z.exe'
             $pythonUrl = 'https://www.python.org/ftp/python/3.14.3/python-3.14.3-embed-arm64.zip'
             $vsCodeUrl = 'https://code.visualstudio.com/sha/download?build=stable&os=win32-arm64-archive'
+            $githubDesktopUrl = 'https://central.github.com/deployments/desktop/desktop/latest/win32-arm64'
         } else {
             $nodeUrl = 'https://nodejs.org/dist/v24.12.0/node-v24.12.0-win-x64.zip'
             $gitUrl = 'https://github.com/git-for-windows/git/releases/download/v2.52.0.windows.1/PortableGit-2.52.0-64-bit.7z.exe'
             $pythonUrl = 'https://www.python.org/ftp/python/3.14.3/python-3.14.3-embed-amd64.zip'
             $vsCodeUrl = 'https://code.visualstudio.com/sha/download?build=stable&os=win32-x64-archive'
+            $githubDesktopUrl = 'https://central.github.com/deployments/desktop/desktop/latest/win32'
         }
 
         $script:ToolConfigs = @{
@@ -174,6 +177,17 @@ begin {
                         New-Item -Path $dataFolder -ItemType Directory -Force | Out-Null
                     }
                 }
+            }
+            GitHubDesktop = @{
+                Name = 'GitHub Desktop'
+                DownloadUrl = $githubDesktopUrl
+                FolderName = 'GitHubDesktop'
+                PathSubfolder = ''
+                AdditionalPaths = @()
+                FlattenArchive = $false
+                UseOfficialInstaller = $true
+                ExecutablesToCheck = @("GitHubDesktop.exe")
+                PostInstallScript = $null
             }
         }
     }
@@ -284,7 +298,7 @@ begin {
         [OutputType([PSCustomObject])]
         param(
             [Parameter(Mandatory = $true)]
-            [ValidateSet("Node", "Git", "ClaudeCode", "Python", "VSCode")]
+            [ValidateSet("Node", "Git", "ClaudeCode", "Python", "VSCode", "GitHubDesktop")]
             [string]$ToolName
         )
 
@@ -381,6 +395,10 @@ begin {
             $oneDrivePath = ""
             $localPath = $userProfilePath
             $isClaudeCode = $true
+        } elseif ($ToolName -eq 'GitHubDesktop') {
+            # GitHub Desktop always installs to LocalAppData via official installer
+            $oneDrivePath = ""
+            $localPath = Join-Path $env:LOCALAPPDATA "GitHubDesktop"
         } else {
             if ($script:OneDriveAppsRoot) {
                 $oneDrivePath = Join-Path $script:OneDriveAppsRoot $config.FolderName
@@ -538,7 +556,7 @@ begin {
 
         $config = $script:ToolConfigs[$Status.ProgramName]
 
-        if ($Status.OneDrive.ExecutablesFound -and $Status.ProgramName -ne 'ClaudeCode') {
+        if ($Status.OneDrive.ExecutablesFound -and $Status.ProgramName -ne 'ClaudeCode' -and $Status.ProgramName -ne 'GitHubDesktop') {
             Write-Log ">>> $($config.Name) is already installed in OneDrive <<<" -Level Success
             Write-Log "    Location: $($Status.OneDrive.BasePath)"
             Write-Log "    In PATH: $($Status.OneDrive.InEnvironmentPath)"
@@ -878,6 +896,44 @@ begin {
     }
 
     #endregion Install-ClaudeCodeOfficial
+    #region Install-GitHubDesktopOfficial
+
+    function Install-GitHubDesktopOfficial {
+        [CmdletBinding()]
+        param()
+
+        Write-Log "Installing GitHub Desktop using official installer..."
+
+        $config = $script:ToolConfigs['GitHubDesktop']
+        $installerPath = Join-Path $script:TempDownloadFolder "GitHubDesktopSetup.exe"
+
+        Get-FileFromUrl -Url $config.DownloadUrl -OutputPath $installerPath
+
+        Write-Log "Running GitHub Desktop installer silently..."
+        $process = Start-Process -FilePath $installerPath -ArgumentList '--silent' -Wait -PassThru -NoNewWindow
+
+        # Squirrel installers may return non-zero on success; treat as informational
+        if ($process.ExitCode -ne 0) {
+            Write-Log "Installer exited with code: $($process.ExitCode) (may be normal for Squirrel installers)" -Level Warning
+        }
+
+        # Wait up to 60 s for the exe to appear (Squirrel can finish async)
+        $githubDesktopPath = Join-Path $env:LOCALAPPDATA "GitHubDesktop"
+        $exePath = Join-Path $githubDesktopPath "GitHubDesktop.exe"
+        $waited = 0
+        while (-not (Test-Path -LiteralPath $exePath) -and $waited -lt 60) {
+            Start-Sleep -Seconds 2
+            $waited += 2
+        }
+
+        if (-not (Test-Path -LiteralPath $exePath)) {
+            throw "GitHub Desktop installation completed but executable not found at: $exePath"
+        }
+
+        Write-Log "GitHub Desktop installed to: $githubDesktopPath"
+    }
+
+    #endregion Install-GitHubDesktopOfficial
     #region Install-Tool
 
     function Install-Tool {
@@ -967,6 +1023,10 @@ begin {
         if ($ToolName -eq 'ClaudeCode') {
             # Claude Code uses official installer
             Install-ClaudeCodeOfficial
+            return
+        } elseif ($ToolName -eq 'GitHubDesktop') {
+            # GitHub Desktop uses official Squirrel installer
+            Install-GitHubDesktopOfficial
             return
         } else {
             $toolPath = Join-Path $script:AppsRoot $config.FolderName
@@ -1071,13 +1131,13 @@ process {
 
         # Determine which tools to install
         $toolsToInstall = if ($Tools -contains 'All') {
-            @('Node', 'Git', 'Python', 'VSCode', 'ClaudeCode')  # Specific order: Git before ClaudeCode
+            @('Node', 'Git', 'Python', 'VSCode', 'ClaudeCode', 'GitHubDesktop')  # Specific order: Git before ClaudeCode
         } else {
             # Ensure Git comes before ClaudeCode if both are requested
             $orderedTools = @()
             if ($Tools -contains 'Git') { $orderedTools += 'Git' }
             foreach ($tool in $Tools) {
-                if ($tool -ne 'Git' -and $tool -ne 'ClaudeCode') {
+                if ($tool -ne 'Git' -and $tool -ne 'ClaudeCode' -and $tool -ne 'GitHubDesktop') {
                     $orderedTools += $tool
                 }
             }
@@ -1086,6 +1146,7 @@ process {
                 { $orderedTools += 'Git' }
                 $orderedTools += 'ClaudeCode'
             }
+            if ($Tools -contains 'GitHubDesktop') { $orderedTools += 'GitHubDesktop' }
             $orderedTools
         }
 
