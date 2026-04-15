@@ -3,8 +3,9 @@
     Downloads and installs portable development tools to user-scoped OneDrive or Local folder.
 .DESCRIPTION
     Automatically downloads, extracts, and configures portable versions of development tools
-    (Node.js, Git, Python, VS Code, Claude Code, GitHub Desktop) to either OneDrive\Apps-SU\[arch] or Local\Apps-SU\[arch].
+    (Node.js, Git, Python, VS Code, Claude Code, GitHub Desktop, PowerShell 7) to either OneDrive\Apps-SU\[arch] or Local\Apps-SU\[arch].
     GitHub Desktop is always installed locally to %LOCALAPPDATA%\GitHubDesktop regardless of the Location parameter.
+    PowerShell 7 is installed via winget from the Microsoft Store (per-user, no admin required).
     Updates USER PATH as needed and cleans up installation files.
 
     Detects system architecture (x64 or ARM64) and downloads the appropriate installers.
@@ -13,7 +14,7 @@
 .PARAMETER Tools
     Array of tool names to install. If not specified, installs all available tools.
     A Prerequisite to ClaudeCode is Git. If only ClaudeCode is specified, Git will be added to the list to install as well.
-    Valid values: 'Node', 'Git', 'Python', 'VSCode', 'ClaudeCode', 'GitHubDesktop', 'All'
+    Valid values: 'Node', 'Git', 'Python', 'VSCode', 'ClaudeCode', 'GitHubDesktop', 'PowerShell7', 'All'
 .PARAMETER Location
     Where to install tools. Options: 'OneDrive' (default) or 'Local'
     Note: Claude Code is always installed locally regardless of this setting.
@@ -39,7 +40,7 @@
 [CmdletBinding(DefaultParameterSetName = 'Default')]
 Param(
     [Parameter(Mandatory = $false)]
-    [ValidateSet('Node', 'Git', 'Python', 'VSCode', 'ClaudeCode', 'GitHubDesktop', 'All')]
+    [ValidateSet('Node', 'Git', 'Python', 'VSCode', 'ClaudeCode', 'GitHubDesktop', 'PowerShell7', 'All')]
     [string[]]$Tools = @('All'),
 
     [Parameter(Mandatory = $false)]
@@ -189,6 +190,17 @@ begin {
                 ExecutablesToCheck = @("GitHubDesktop.exe")
                 PostInstallScript = $null
             }
+            PowerShell7 = @{
+                Name = 'PowerShell 7'
+                DownloadUrl = $null  # Installed via winget
+                FolderName = 'PowerShell7'
+                PathSubfolder = ''
+                AdditionalPaths = @()
+                FlattenArchive = $false
+                UseOfficialInstaller = $true
+                ExecutablesToCheck = @("pwsh.exe")
+                PostInstallScript = $null
+            }
         }
     }
 
@@ -298,7 +310,7 @@ begin {
         [OutputType([PSCustomObject])]
         param(
             [Parameter(Mandatory = $true)]
-            [ValidateSet("Node", "Git", "ClaudeCode", "Python", "VSCode", "GitHubDesktop")]
+            [ValidateSet("Node", "Git", "ClaudeCode", "Python", "VSCode", "GitHubDesktop", "PowerShell7")]
             [string]$ToolName
         )
 
@@ -399,6 +411,16 @@ begin {
             # GitHub Desktop always installs to LocalAppData via official installer
             $oneDrivePath = ""
             $localPath = Join-Path $env:LOCALAPPDATA "GitHubDesktop"
+        } elseif ($ToolName -eq 'PowerShell7') {
+            # PowerShell 7 is installed via winget; check for pwsh.exe on PATH
+            $oneDrivePath = ""
+            $pwshCmd = Get-Command pwsh.exe -ErrorAction SilentlyContinue
+            if ($pwshCmd) {
+                $localPath = Split-Path $pwshCmd.Source -Parent
+            } else {
+                # Check common Microsoft Store install location
+                $localPath = Join-Path $env:LOCALAPPDATA "Microsoft\WindowsApps"
+            }
         } else {
             if ($script:OneDriveAppsRoot) {
                 $oneDrivePath = Join-Path $script:OneDriveAppsRoot $config.FolderName
@@ -556,7 +578,7 @@ begin {
 
         $config = $script:ToolConfigs[$Status.ProgramName]
 
-        if ($Status.OneDrive.ExecutablesFound -and $Status.ProgramName -ne 'ClaudeCode' -and $Status.ProgramName -ne 'GitHubDesktop') {
+        if ($Status.OneDrive.ExecutablesFound -and $Status.ProgramName -ne 'ClaudeCode' -and $Status.ProgramName -ne 'GitHubDesktop' -and $Status.ProgramName -ne 'PowerShell7') {
             Write-Log ">>> $($config.Name) is already installed in OneDrive <<<" -Level Success
             Write-Log "    Location: $($Status.OneDrive.BasePath)"
             Write-Log "    In PATH: $($Status.OneDrive.InEnvironmentPath)"
@@ -934,6 +956,54 @@ begin {
     }
 
     #endregion Install-GitHubDesktopOfficial
+    #region Install-PowerShell7Winget
+
+    function Install-PowerShell7Winget {
+        [CmdletBinding()]
+        param()
+
+        Write-Log "Installing PowerShell 7 via winget..."
+
+        # Check if winget is available
+        $wingetCmd = Get-Command winget.exe -ErrorAction SilentlyContinue
+        if (-not $wingetCmd) {
+            throw "winget is not available on this system. Please install App Installer from the Microsoft Store first."
+        }
+
+        # Check if PowerShell 7 is already installed
+        $pwshCmd = Get-Command pwsh.exe -ErrorAction SilentlyContinue
+        if ($pwshCmd) {
+            Write-Log "PowerShell 7 is already installed at: $($pwshCmd.Source)"
+            return
+        }
+
+        # Install from Microsoft Store source (per-user, no admin required)
+        Write-Log "Installing PowerShell 7 from Microsoft Store via winget..."
+        try {
+            $process = Start-Process -FilePath "winget.exe" -ArgumentList "install --id Microsoft.PowerShell --source msstore --accept-package-agreements --accept-source-agreements --silent" -Wait -PassThru -NoNewWindow
+            if ($process.ExitCode -ne 0) {
+                # winget may return non-zero for "already installed" or "needs reboot"
+                Write-Log "winget exited with code: $($process.ExitCode)" -Level Warning
+            }
+        }
+        catch {
+            Write-Error "PowerShell 7 installation failed: $_"
+            throw
+        }
+
+        # Verify installation
+        # Refresh PATH to pick up newly installed pwsh
+        Get-EnvironmentPath
+
+        $pwshCmd = Get-Command pwsh.exe -ErrorAction SilentlyContinue
+        if ($pwshCmd) {
+            Write-Log "PowerShell 7 installed successfully: $($pwshCmd.Source)"
+        } else {
+            Write-Log "PowerShell 7 installation completed. You may need to restart your terminal for pwsh to be available on PATH." -Level Warning
+        }
+    }
+
+    #endregion Install-PowerShell7Winget
     #region Install-Tool
 
     function Install-Tool {
@@ -976,6 +1046,18 @@ begin {
                 return
             }
         }
+
+        # Special check for PowerShell 7 - see if pwsh is already available
+        if ($ToolName -eq 'PowerShell7') {
+            $pwshCmd = Get-Command pwsh.exe -ErrorAction SilentlyContinue
+            if ($pwshCmd) {
+                Write-Log ">>> PowerShell 7 is already installed <<<" -Level Success
+                Write-Log "    Location: $($pwshCmd.Source)"
+                Write-Log "    Skipping installation"
+                return
+            }
+        }
+
         # Check if already installed
         $status = Test-ToolInstalled -ToolName $ToolName
 
@@ -1027,6 +1109,10 @@ begin {
         } elseif ($ToolName -eq 'GitHubDesktop') {
             # GitHub Desktop uses official Squirrel installer
             Install-GitHubDesktopOfficial
+            return
+        } elseif ($ToolName -eq 'PowerShell7') {
+            # PowerShell 7 installed via winget
+            Install-PowerShell7Winget
             return
         } else {
             $toolPath = Join-Path $script:AppsRoot $config.FolderName
@@ -1131,13 +1217,13 @@ process {
 
         # Determine which tools to install
         $toolsToInstall = if ($Tools -contains 'All') {
-            @('Node', 'Git', 'Python', 'VSCode', 'ClaudeCode', 'GitHubDesktop')  # Specific order: Git before ClaudeCode
+            @('Node', 'Git', 'Python', 'VSCode', 'ClaudeCode', 'GitHubDesktop', 'PowerShell7')  # Specific order: Git before ClaudeCode
         } else {
             # Ensure Git comes before ClaudeCode if both are requested
             $orderedTools = @()
             if ($Tools -contains 'Git') { $orderedTools += 'Git' }
             foreach ($tool in $Tools) {
-                if ($tool -ne 'Git' -and $tool -ne 'ClaudeCode' -and $tool -ne 'GitHubDesktop') {
+                if ($tool -ne 'Git' -and $tool -ne 'ClaudeCode' -and $tool -ne 'GitHubDesktop' -and $tool -ne 'PowerShell7') {
                     $orderedTools += $tool
                 }
             }
@@ -1147,6 +1233,7 @@ process {
                 $orderedTools += 'ClaudeCode'
             }
             if ($Tools -contains 'GitHubDesktop') { $orderedTools += 'GitHubDesktop' }
+            if ($Tools -contains 'PowerShell7') { $orderedTools += 'PowerShell7' }
             $orderedTools
         }
 
@@ -1204,6 +1291,14 @@ process {
                     $systemPython = Test-PythonSystemInstalled
                     if ($systemPython.IsInstalled) {
                         Write-Log "[OK] $($config.Name) - Installed (Microsoft Store)" -Level Success
+                        continue
+                    }
+                }
+                # Special case for PowerShell7 - check if pwsh is on PATH
+                if ($tool -eq 'PowerShell7') {
+                    $pwshCmd = Get-Command pwsh.exe -ErrorAction SilentlyContinue
+                    if ($pwshCmd) {
+                        Write-Log "[OK] $($config.Name) - Installed" -Level Success
                         continue
                     }
                 }
