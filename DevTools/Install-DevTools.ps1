@@ -64,6 +64,7 @@ begin {
     $script:OneDriveAppsRoot = $null
     $script:LocalRoot = $null
     $script:LocalAppsRoot = $null
+    $script:LocalGitRoot = $null
     $script:AppsRoot = $null  # Will be set based on Location parameter
     $script:TempDownloadFolder = $null
     $script:IsArm64 = $false
@@ -294,6 +295,10 @@ begin {
         }
         if (-not (Test-Path -LiteralPath $script:LocalAppsRoot)) {
             New-Item -Path $script:LocalAppsRoot -ItemType Directory -Force | Out-Null
+        }
+        $script:LocalGitRoot = Join-Path $script:LocalAppsRoot "Git"
+        if (-not (Test-Path -LiteralPath $script:LocalGitRoot)) {
+            New-Item -Path $script:LocalGitRoot -ItemType Directory -Force | Out-Null
         }
 
         # Create temp folder
