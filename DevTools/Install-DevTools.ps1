@@ -977,10 +977,12 @@ begin {
             return
         }
 
-        # Install from Microsoft Store source (per-user, no admin required)
+        # Install from Microsoft Store via winget
+        # The msstore source requires interactive agreement acceptance on first use.
+        # Pipe "Y" via cmd to accept the Terms of Transaction and region consent prompts.
         Write-Log "Installing PowerShell 7 from Microsoft Store via winget..."
         try {
-            $process = Start-Process -FilePath "winget.exe" -ArgumentList "install --id Microsoft.PowerShell --source msstore --accept-package-agreements --accept-source-agreements --silent" -Wait -PassThru -NoNewWindow
+            $process = Start-Process -FilePath "cmd.exe" -ArgumentList '/c echo Y | winget install --id 9MZ1SNWT0N5D --source msstore --accept-package-agreements --accept-source-agreements --silent' -Wait -PassThru -NoNewWindow
             if ($process.ExitCode -ne 0) {
                 # winget may return non-zero for "already installed" or "needs reboot"
                 Write-Log "winget exited with code: $($process.ExitCode)" -Level Warning
